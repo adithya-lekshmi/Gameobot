@@ -4,7 +4,7 @@
 
 
 
-# Endless Runner
+# Blaze Vortex
 
 in this game there is an endless runner where the player must keep moving forward, avoiding obstacles and collecting power-ups. The game gets faster and more challenging as it progresses.
 
@@ -21,8 +21,8 @@ in this game there is an endless runner where the player must keep moving forwar
 
 ## How it Works ?
 
-1. Endless Runner Game
-Welcome to the Endless Runner Game! This project is a simple endless runner game developed using the Godot Engine. The objective of the game is to navigate the player character through an endless scrolling environment while avoiding obstacles.
+1. Blaze Vortex Game
+Welcome to the Blaze Vortex! This project is a simple endless runner game developed using the Godot Engine. The objective of the game is to navigate the player character through an endless scrolling environment while avoiding obstacles.
 
 Features
 Endless Scrolling Track: The game world continuously scrolls, creating an endless runner experience.
