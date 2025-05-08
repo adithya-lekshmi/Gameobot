@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blaze Vortex</title>
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #111;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+        #gameCanvas {
+            border: 2px solid #ddd;
+            background-color: #222;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+            width: 95%; /* Adjust as needed */
+            max-width: 800px; /* Maximum width */
+            height: auto;
+            max-height: 95vh;
+            aspect-ratio: 8 / 10;
+        }
+        #startScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            z-index: 10;
+        }
+        #startScreen h1 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: #ff6700;
+        }
+        #startScreen button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            color: #fff;
+            background-color: #ff6700;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-family: 'Press Start 2P', cursive;
+            margin-top: 1rem;
+        }
+        #startScreen button:hover {
+            background-color: #e55d00;
+        }
+        #gameOverScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            z-index: 10;
+            display: none;
+        }
+        #gameOverScreen h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: #ff6700;
+        }
+        #gameOverScreen p {
+            font-size: 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+        #gameOverScreen button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            color: #fff;
+            background-color: #ff6700;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-family: 'Press Start 2P', cursive;
+            margin-top: 1rem;
+        }
+        #gameOverScreen button:hover {
+            background-color: #e55d00;
+        }
+        #scoreDisplay {
+            position: absolute;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-size: 1.5rem;
+            z-index: 10;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+        .gameArea {
+            position: relative; /* Allows for absolutely positioned elements within */
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+    <script>
+        // Initialize Tone.js (sound effects)
+        const jumpSynth = new Tone.Synth().toDestination();
+        const powerUpSynth = new Tone.Synth().toDestination();
+        const gameOverSynth = new Tone.MembraneSynth().toDestination();
+
+        // Sound Functions
+        function playJumpSound() {
+            jumpSynth.triggerAttackRelease("C4", "8n");
+        }
+
+        function playPowerUpSound() {
+            powerUpSynth.triggerAttackRelease("G4", "8n");
+        }
+
+        function playGameOverSound() {
+           // gameOverSynth.triggerAttackRelease("A2", "1n");  // Simple tone
+            // More complex sound (a short chord progression)
+              const now = Tone.now();
+              gameOverSynth.triggerAttackRelease("C2", "8n", now);
+              gameOverSynth.triggerAttackRelease("E2", "8n", now + 0.2);
+              gameOverSynth.triggerAttackRelease("G2", "8n", now + 0.4);
+              gameOverSynth.triggerAttackRelease("C3", "1n", now + 0.6);
+        }
+    </script>
+</head>
+<body>
+    <div class="gameArea">
+        <canvas id="gameCanvas"></canvas>
+        <div id="startScreen">
+            <h1>Blaze Vortex</h1>
+            <p>Tap to Start</p>
+            <button id="startButton">Start Game</button>
+        </div>
+        <div id="gameOverScreen" style="display: none;">
+            <h2>Game Over</h2>
+            <p>Final Score: <span id="finalScoreDisplay">0</span></p>
+            <button id="restartButton">Restart</button>
+        </div>
+        <div id="scoreDisplay">Score: <span id="scoreValue">0</span></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const restartButton = document.getElementById('restartButton');
+        const scoreDisplay = document.getElementById('scoreValue');
+        const finalScoreDisplay = document.getElementById('finalScoreDisplay');
+        const startButton = document.getElementById('startButton');
+
+        let gameRunning = false;
+        let player;
+        let obstacles = [];
+        let powerUps = [];
+        let score = 0;
+        let gameSpeed = 1;  // Initial speed
+        let animationId;
+        let obstacleSpawnTimer = 1500; // Initial obstacle spawn rate in milliseconds
+        let powerUpSpawnTimer = 5000;  // Initial power-up spawn rate
+        let lastObstacleSpawnTime = 0;
+        let lastPowerUpSpawnTime = 0;
+        let canvasWidth = 0;
+        let canvasHeight = 0;
+
+        function resizeCanvas() {
+            canvasWidth = document.querySelector('.gameArea').offsetWidth;
+            canvasHeight = document.querySelector('.gameArea').offsetHeight;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+        }
+
+        resizeCanvas();
+
+        window.addEventListener('resize', resizeCanvas);
+
+
+        // Player properties
+        const playerSize = 20;
+        let playerX;
+        let playerY;
+        const playerColor = '#ff6700';  // Orange
+
+        // Obstacle properties
+        const obstacleWidth = 30;
+        const obstacleHeight = 30;
+        const obstacleColor = '#3b82f6'; // Blue
+
+        // Power-up properties
+        const powerUpSize = 15;
+        const powerUpColor = '#84cc16'; // Green
+        const powerUpDuration = 5000;    // 5 seconds
+
+        let isPoweredUp = false;
+        let powerUpTimeoutId;
+
+        function initGame() {
+            gameRunning = true;
+            playerX = canvasWidth / 4;
+            playerY = canvasHeight / 2;
+            obstacles = [];
+            powerUps = [];
+            score = 0;
+            gameSpeed = 1;
+            obstacleSpawnTimer = 1500;
+            powerUpSpawnTimer = 5000;
+            lastObstacleSpawnTime = 0;
+            lastPowerUpSpawnTime = 0;
+            isPoweredUp = false;
+            scoreDisplay.textContent = score; //Initial score display
+            gameOverScreen.style.display = 'none';
+            startScreen.style.display = 'none';
+            if (animationId) cancelAnimationFrame(animationId);
+            gameLoop();
+        }
+
+        function spawnObstacle() {
+            const now = Date.now();
+            if (now - lastObstacleSpawnTime >= obstacleSpawnTimer) {
+                const obstacleX = canvasWidth;
+                const obstacleY = Math.random() * (canvasHeight - obstacleHeight);
+                obstacles.push({ x: obstacleX, y: obstacleY });
+                lastObstacleSpawnTime = now;
+            }
+        }
+
+        function spawnPowerUp() {
+            const now = Date.now();
+            if (now - lastPowerUpSpawnTime >= powerUpSpawnTimer) {
+                const powerUpX = canvasWidth;
+                const powerUpY = Math.random() * (canvasHeight - powerUpSize);
+                powerUps.push({ x: powerUpX, y: powerUpY });
+                lastPowerUpSpawnTime = now;
+            }
+        }
+
+        function drawPlayer() {
+            ctx.beginPath();
+            ctx.arc(playerX, playerY, playerSize, 0, Math.PI * 2);
+            ctx.fillStyle = playerColor;
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawObstacles() {
+            obstacles.forEach(obstacle => {
+                ctx.fillStyle = obstacleColor;
+                ctx.fillRect(obstacle.x, obstacle.y, obstacleWidth, obstacleHeight);
+            });
+        }
+
+        function drawPowerUps() {
+            powerUps.forEach(powerUp => {
+                ctx.beginPath();
+                ctx.arc(powerUp.x, powerUp.y, powerUpSize, 0, Math.PI * 2);
+                ctx.fillStyle = powerUpColor;
+                ctx.fill();
+                ctx.closePath();
+            });
+        }
+
+         function updatePlayerPosition() {
+            if (keys['ArrowUp'] && playerY > playerSize) {
+                playerY -= 5;
+            }
+            if (keys['ArrowDown'] && playerY < canvasHeight - playerSize) {
+                playerY += 5;
+            }
+            if (keys['ArrowLeft'] && playerX > playerSize) {
+                playerX -= 5;
+            }
+            if (keys['ArrowRight'] && playerX < canvasWidth - playerSize) {
+                playerX += 5;
+            }
+        }
+
+        function updateObstacles() {
+            obstacles.forEach(obstacle => {
+                obstacle.x -= gameSpeed;
+            });
+            obstacles = obstacles.filter(obstacle => obstacle.x > -obstacleWidth);
+        }
+
+        function updatePowerUps() {
+            powerUps.forEach(powerUp => {
+                powerUp.x -= gameSpeed;
+            });
+            powerUps = powerUps.filter(powerUp => powerUp.x > -powerUpSize);
+        }
+
+        function checkCollision() {
+            for (const obstacle of obstacles) {
+                if (
+                    playerX < obstacle.x + obstacleWidth &&
+                    playerX + playerSize > obstacle.x &&
+                    playerY < obstacle.y + obstacleHeight &&
+                    playerY + playerSize > obstacle.y
+                ) {
+                    gameRunning = false;
+                    playGameOverSound();
+                    cancelAnimationFrame(animationId);
+                    finalScoreDisplay.textContent = score;
+                    gameOverScreen.style.display = 'block';
+                    return;
+                }
+            }
+        }
+
+        function checkPowerUpCollision() {
+            for (let i = 0; i < powerUps.length; i++) {
+                const powerUp = powerUps[i];
+                if (
+                    playerX < powerUp.x + powerUpSize &&
+                    playerX + playerSize > powerUp.x &&
+                    playerY < powerUp.y + powerUpSize &&
+                    playerY + playerSize > powerUp.y
+                ) {
+                    playPowerUpSound();
+                    isPoweredUp = true;
+                    powerUps.splice(i, 1); // Remove the power-up
+                    score += 5;
+                    scoreDisplay.textContent = score;
+
+                    if (powerUpTimeoutId) {
+                      clearTimeout(powerUpTimeoutId); // Clear any existing timeout
+                    }
+                    powerUpTimeoutId = setTimeout(() => {
+                        isPoweredUp = false;
+                    }, powerUpDuration);
+                    break; // Only one power-up can be active at a time
+                }
+            }
+        }
+
+        function updateScore() {
+            score++;
+            scoreDisplay.textContent = score;
+        }
+
+        function increaseDifficulty() {
+            if (score % 100 === 0) { // Increase difficulty every 100 points
+                gameSpeed += 0.2;       // Increase speed
+                obstacleSpawnTimer *= 0.9; // Spawn obstacles more frequently
+                powerUpSpawnTimer *= 0.9;   // Spawn power-ups more frequently
+            }
+        }
+
+        let keys = {};
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            spawnObstacle();
+            spawnPowerUp();
+            updatePlayerPosition();
+            updateObstacles();
+            updatePowerUps();
+            checkCollision(); //important to check constantly
+            checkPowerUpCollision();
+            updateScore();
+            increaseDifficulty();
+            drawPlayer();
+            drawObstacles();
+            drawPowerUps();
+
+            if (isPoweredUp) {
+                ctx.strokeStyle = '#84cc16'; // Green outline when powered up
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(playerX, playerY, playerSize + 5, 0, Math.PI * 2); // Larger outline
+                ctx.stroke();
+                ctx.closePath();
+                ctx.lineWidth = 1; // Reset line width
+            }
+
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        // Event Listeners for Buttons
+        startButton.addEventListener('click', () => {
+            initGame();
+        });
+
+        restartButton.addEventListener('click', () => {
+            initGame();
+        });
+
+        // Prevent "stuck" key presses
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                keys = {}; // Reset all keys
+            }
+        });
+
+        //Mobile touch support
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevents additional mouse events
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const touchX = touch.clientX - rect.left;
+            const touchY = touch.clientY - rect.top;
+
+             // Simulate arrow key press based on touch position relative to player
+            if (touchX < playerX) {
+                keys['ArrowLeft'] = true;
+            } else if (touchX > playerX) {
+                keys['ArrowRight'] = true;
+            }
+            if (touchY < playerY) {
+                keys['ArrowUp'] = true;
+            } else if (touchY > playerY) {
+                keys['ArrowDown'] = true;
+            }
+
+           // Play jump sound on tap (optional, depending on desired control scheme)
+           playJumpSound();
+        }, { passive: false }); // Important for preventDefault
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            keys['ArrowLeft'] = false;
+            keys['ArrowRight'] = false;
+            keys['ArrowUp'] = false;
+            keys['ArrowDown'] = false;
+        }, { passive: false });
+
+        // Start the game when the start button is clicked
+        // startButton.addEventListener('click', initGame); // Removed, called directly.
+    </script>
+</body>
+</html>
